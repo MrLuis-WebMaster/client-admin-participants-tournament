@@ -46,7 +46,7 @@ export const showAlert = async (options: CustomAlertOptions, requestConfig: Requ
             text: 'Excellent',
         })
     }
-  } catch (error) {
+  } catch (error:any) {
     Swal.fire({
       icon: 'error',
       title: 'Request failed',
