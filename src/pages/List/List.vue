@@ -302,7 +302,7 @@ const handleBulkEmails = async (type: string) => {
   );
 };
 const handleBulkEmailsInvitation = async () => {
-  if (!invitationGame.idGame.length || !invitationGame.passwordGame.length || invitationGame.urlInvitation.length) {
+  if (!invitationGame.idGame.length || !invitationGame.passwordGame.length || !invitationGame.urlInvitation.length) {
     alert('All fields are required')
     return;
   }
