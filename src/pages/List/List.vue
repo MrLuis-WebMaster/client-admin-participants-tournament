@@ -1,5 +1,5 @@
 <template>
-  <div class="container my-5">
+  <div class="">
     <h2 class="mb-5">Participants ({{ participants.totalCount }})</h2>
     <div class="row align-items-center">
       <div class="col-12 col-md-6">
@@ -49,9 +49,16 @@
         <thead>
           <tr>
             <th scope="col">Full Name</th>
+            <th scope="col">Username</th>
+            <th scope="col">UserId</th>
             <th scope="col">Email</th>
             <th scope="col">Phone</th>
-            <th scope="col">Payment</th>
+            <th
+              scope="col"
+              v-if="store.tournament && store.tournament.entryFee > 0"
+            >
+              Payment
+            </th>
             <th scope="col">Actions</th>
           </tr>
         </thead>
@@ -61,13 +68,27 @@
             :key="participant.id"
           >
             <td>{{ participant.fullName }}</td>
+            <td>
+              {{ participant.tournaments[0].TournamentParticipant.userName }}
+            </td>
+            <td>
+              {{ participant.tournaments[0].TournamentParticipant.userId }}
+            </td>
             <td>{{ participant.email }}</td>
             <td>{{ participant.phone }}</td>
-            <td>
-              <span v-if="participant.isPaid" class="badge text-bg-success"
+            <td v-if="store.tournament && store.tournament.entryFee > 0">
+              <span
+                v-if="participant.tournaments[0].TournamentParticipant.isPaid"
+                class="badge text-bg-success"
                 >Paid</span
               >
-              <div v-else class="d-flex flex-wrap align-items-center">
+              <div
+                v-else-if="
+                  participants.totalCountPaid !==
+                  participant.tournaments[0].maxParticipants
+                "
+                class="d-flex flex-wrap align-items-center"
+              >
                 <div class="col-12 col-md-5 px-0">
                   <span class="badge text-bg-danger w-auto">has not paid</span>
                 </div>
@@ -79,6 +100,9 @@
                     <i class="bi bi-send-check"></i>
                   </button>
                 </div>
+              </div>
+              <div v-else>
+                <span class="badge text-bg-warning">Full capacity</span>
               </div>
             </td>
             <td>
@@ -199,7 +223,13 @@
             >
               Close
             </button>
-            <button @click="handleBulkEmailsInvitation" type="button" class="btn btn-primary">Send Emails</button>
+            <button
+              @click="handleBulkEmailsInvitation"
+              type="button"
+              class="btn btn-primary"
+            >
+              Send Emails
+            </button>
           </div>
         </div>
       </div>
@@ -209,8 +239,16 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
+import { useRoute } from "vue-router";
 import serverApi from "../../services/server";
 import { showAlert } from "./alerts/sweetAlert";
+import { TournamentDto } from "../../interface/tournament.dto";
+import { useTournamentStore } from "../../store/store";
+const store = useTournamentStore();
+
+const {
+  params: { tournamentId },
+} = useRoute();
 
 interface ParticipantDto {
   id: number;
@@ -222,16 +260,19 @@ interface ParticipantDto {
   age: number;
   platform: string;
   isPaid: boolean;
+  tournaments: TournamentDto[];
 }
 
 interface ParticipantsData {
   participants: ParticipantDto[];
   totalCount: number;
+  totalCountPaid: number;
 }
 
 const participants = ref<ParticipantsData>({
   participants: [],
   totalCount: 0,
+  totalCountPaid: 0,
 });
 
 const loading = ref(true);
@@ -239,16 +280,16 @@ let page = 1;
 const pageSize = 10;
 let searchTerm = "";
 let invitationGame = {
-  idGame: '',
-  passwordGame: '',
-  urlInvitation: ''
-}
+  idGame: "",
+  passwordGame: "",
+  urlInvitation: "",
+};
 
 const fetchData = async () => {
   try {
     loading.value = true;
     const response = await serverApi.get(
-      `/participants?page=${page}&pageSize=${pageSize}&searchTerm=${searchTerm}`
+      `/participants?tournamentId=${tournamentId}&page=${page}&pageSize=${pageSize}&searchTerm=${searchTerm}`
     );
     participants.value = response.data;
     loading.value = false;
@@ -270,7 +311,7 @@ const handleRemove = async (id: number) => {
     },
     {
       method: "delete",
-      url: `/participants/${id}`,
+      url: `/tournament-participant/${tournamentId}/${id}`,
     }
   );
   await fetchData();
@@ -283,7 +324,7 @@ const handleUpatePay = async (id: number) => {
     },
     {
       method: "put",
-      url: `/participants/is-paid/${id}`,
+      url: `/tournament-participant/is-paid/${tournamentId}/${id}`,
     }
   );
   await fetchData();
@@ -297,13 +338,23 @@ const handleBulkEmails = async (type: string) => {
     },
     {
       method: "post",
-      url: `/emails/${type}`,
+      url: `/emails/${type}/${tournamentId}`,
+      body: {
+        rules: store.tournament?.rules,
+        dateTime: store.tournament?.dateTime,
+        name: store.tournament?.name,
+        game: store.tournament?.game,
+      },
     }
   );
 };
 const handleBulkEmailsInvitation = async () => {
-  if (!invitationGame.idGame.length || !invitationGame.passwordGame.length || !invitationGame.urlInvitation.length) {
-    alert('All fields are required')
+  if (
+    !invitationGame.idGame.length ||
+    !invitationGame.passwordGame.length ||
+    !invitationGame.urlInvitation.length
+  ) {
+    alert("All fields are required");
     return;
   }
   await showAlert(
@@ -313,15 +364,16 @@ const handleBulkEmailsInvitation = async () => {
     },
     {
       method: "post",
-      url: '/emails/invitation',
+      url: `/emails/invitation/${tournamentId}`,
       body: {
         ...invitationGame,
-      }
+      },
     }
   );
 };
 
 onMounted(() => {
+  store.getTournament(tournamentId);
   fetchData();
 });
 
